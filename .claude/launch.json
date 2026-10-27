@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "meal-planner-dev",
+      "runtimeExecutable": "C:\\Windows\\System32\\cmd.exe",
+      "runtimeArgs": ["/d", "/c", "set PORT=3002&& npm run dev"],
+      "port": 5174
+    }
+  ]
+}
