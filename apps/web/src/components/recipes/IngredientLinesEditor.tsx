@@ -34,11 +34,17 @@ export function IngredientLinesEditor() {
       <ol className="grid gap-3">
         {fields.map((field, i) => {
           const e = errors?.[i];
+          const hint = field.hint;
           const messages = [e?.quantity, e?.unit, e?.ingredientId, e?.preparation]
             .map((x) => x?.message)
             .filter(Boolean);
           return (
             <li key={field.id} className="bg-background grid gap-2 rounded-lg border p-3">
+              {hint && (
+                <p className="text-muted-foreground text-xs">
+                  From the page: <q className="text-foreground">{hint.original}</q>
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-[5rem_8rem_minmax(0,1fr)_minmax(0,1fr)]">
                 <Input
                   aria-label={`Line ${i + 1} amount`}
@@ -75,7 +81,7 @@ export function IngredientLinesEditor() {
                     </Select>
                   )}
                 />
-                <div className="col-span-2 sm:col-span-1">
+                <div className="col-span-2 grid gap-1 sm:col-span-1">
                   <Controller
                     control={control}
                     name={`ingredients.${i}.ingredientId`}
@@ -84,6 +90,9 @@ export function IngredientLinesEditor() {
                         value={f.value}
                         onChange={f.onChange}
                         catalog={catalog}
+                        suggestion={
+                          hint && { name: hint.suggestedName, category: hint.suggestedCategory }
+                        }
                         invalid={Boolean(e?.ingredientId)}
                       />
                     )}

@@ -25,11 +25,14 @@ import { IngredientLinesEditor } from './IngredientLinesEditor';
 
 export function RecipeForm({
   recipe,
+  initialValues,
   onSubmit,
   onSaved,
   onCancel,
 }: {
   recipe?: Recipe;
+  /** Starting values instead of `recipe` (e.g. an imported draft). */
+  initialValues?: RecipeFormValues;
   onSubmit: (input: RecipeFormOutput) => Promise<Recipe>;
   /** Navigate away with `ignoreBlocker: true`; the form is still "dirty" at this point. */
   onSaved: (recipe: Recipe) => void;
@@ -37,7 +40,7 @@ export function RecipeForm({
 }) {
   const form = useForm<RecipeFormValues, unknown, RecipeFormOutput>({
     resolver: zodResolver(RecipeFormSchema),
-    defaultValues: toRecipeFormValues(recipe),
+    defaultValues: initialValues ?? toRecipeFormValues(recipe),
   });
   const { register, control, handleSubmit, formState } = form;
   // Read during render: React Hook Form only tracks isDirty when it's read.

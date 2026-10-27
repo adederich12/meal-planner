@@ -235,6 +235,17 @@ The same query, run for a single recipe, gives "recipes similar to this one" on 
 | 6     | Recipe import from URL        | First parse schema.org `Recipe` JSON-LD (most recipe sites embed it; no AI needed). Then use Claude to split ingredient lines into quantity/unit/ingredient/preparation and match catalog ingredients. Review form before saving |
 | 7     | Package-aware waste reduction | "You need 1/2 cup cilantro; it's sold by the bunch (~1 cup)". Needs package sizes from phase 5                                                                                                                                   |
 
+### 6.1 Recipe import from URL (built ahead of phases 2–5)
+
+`POST /api/recipes/import { url }` returns a draft for the New recipe form and saves nothing (principle 7).
+
+1. **Fetch** (`services/recipe-import/fetch-page.ts`). The server refuses loopback, private, link-local, CGNAT, and multicast addresses. This blocks **SSRF** (server-side request forgery): without it, a link like `http://192.168.1.1/` would make the app request the router's admin page. The check runs inside the DNS lookup the connection itself uses, so a name can't pass the check and then resolve to a LAN address (DNS rebinding). It runs again on every redirect. Limits: 15 s, 5 MB, 5 redirects, HTML only.
+2. **Read** (`read-page.ts`, no AI). Use the page's schema.org `Recipe` JSON-LD when present (name, yield, ISO-8601 times, steps, category/cuisine as tags). Otherwise use the page's visible text.
+3. **Parse** (`recipe-ai.ts`). Claude (`claude-opus-5-5`, structured outputs validated by a Zod schema) splits ingredient lines into quantity / unit / preparation and picks a catalog name. For pages without JSON-LD, it reads the whole recipe from the text. The prompt includes the unit keys and the non-archived catalog, and tells Claude to treat page content as data. Server-side fallback is on, so a safety-classifier decline retries on another model.
+4. **Match** (`recipe-import.service.ts`). Catalog names map to IDs by exact, case-insensitive name, so a made-up name can't become a wrong match. Unmatched lines carry a suggested name and category, which the line editor offers as a one-tap "Add to catalog".
+
+The feature is on only when `ANTHROPIC_API_KEY` is set (`/api/health` reports `features.recipeImport`). The key stays server-side. `RecipeAi` and `fetchPage` are injected through `AppDeps`, so tests use a fake model and saved HTML and never call the network or the API.
+
 ---
 
 ## 7. Frontend pages

@@ -9,6 +9,7 @@ export const testConfig: AppConfig = {
   dataDir: '',
   env: 'test',
   webDistDir: undefined,
+  anthropicApiKey: undefined,
 };
 
 /** A fresh in-memory database with real migrations. */

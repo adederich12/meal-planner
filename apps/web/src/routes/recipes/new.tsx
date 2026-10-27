@@ -1,6 +1,11 @@
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import { Sparkles } from 'lucide-react';
+import type { RecipeImportDraft } from '@meal-planner/shared';
 import { PageHeader } from '@/components/PageHeader';
+import { ImportFromUrl } from '@/components/recipes/ImportFromUrl';
 import { RecipeForm } from '@/components/recipes/RecipeForm';
+import { toRecipeFormValuesFromDraft } from '@/forms/recipe-form';
 import { useCreateRecipe } from '@/queries/recipes.queries';
 
 export const Route = createFileRoute('/recipes/new')({
@@ -10,10 +15,40 @@ export const Route = createFileRoute('/recipes/new')({
 function NewRecipePage() {
   const navigate = Route.useNavigate();
   const create = useCreateRecipe();
+  // Each import remounts the form with the draft as its starting values.
+  const [imported, setImported] = useState<{ draft: RecipeImportDraft; key: number } | null>(null);
+  const unmatched = imported?.draft.ingredients.filter((l) => !l.ingredientId).length ?? 0;
+
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="New recipe" />
+      <ImportFromUrl
+        onImported={(draft) => setImported((prev) => ({ draft, key: (prev?.key ?? 0) + 1 }))}
+      />
+
+      {imported && (
+        <div className="bg-card mb-4 flex gap-3 rounded-lg border p-4 text-sm" role="status">
+          <Sparkles className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+          <div>
+            <p className="font-medium">
+              Imported from {new URL(imported.draft.sourceUrl).hostname}. Check it before saving.
+            </p>
+            <p className="text-muted-foreground mt-1">
+              {imported.draft.ingredients.length} ingredient
+              {imported.draft.ingredients.length === 1 ? '' : 's'} read
+              {unmatched > 0
+                ? `; ${unmatched} need${unmatched === 1 ? 's' : ''} a catalog ingredient picked or added.`
+                : ', all matched to your catalog.'}
+              {imported.draft.source === 'page-text' &&
+                ' The page had no recipe data, so Claude read its text; check the steps too.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       <RecipeForm
+        key={imported?.key ?? 0}
+        initialValues={imported ? toRecipeFormValuesFromDraft(imported.draft) : undefined}
         onSubmit={(input) => create.mutateAsync(input)}
         onSaved={(r) =>
           void navigate({

@@ -14,7 +14,10 @@ import type { Db } from './db/client.js';
 import { AppError } from './errors.js';
 import { registerLanGuard } from './lan-guard.js';
 import { ingredientRoutes } from './routes/ingredients.js';
+import { recipeImportRoutes } from './routes/recipe-import.js';
 import { recipeRoutes } from './routes/recipes.js';
+import type { PageFetcher } from './services/recipe-import/fetch-page.js';
+import type { RecipeAi } from './services/recipe-import/recipe-ai.js';
 import { systemRoutes } from './routes/system.js';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -23,6 +26,10 @@ export interface AppDeps {
   db: Db;
   /** The clock. Tests can pass a fixed time; defaults to the real one. */
   now?: () => Date;
+  /** Fetches recipe pages for import. Defaults to the real, LAN-blocking fetcher. */
+  fetchPage?: PageFetcher;
+  /** Claude, for recipe import. Null or absent when no API key is configured. */
+  recipeAi?: RecipeAi | null;
 }
 
 /**
@@ -78,6 +85,7 @@ export async function buildApp(config: AppConfig, deps: AppDeps) {
   await app.register(systemRoutes(deps), { prefix: '/api' });
   await app.register(ingredientRoutes(deps), { prefix: '/api' });
   await app.register(recipeRoutes(deps), { prefix: '/api' });
+  await app.register(recipeImportRoutes(deps), { prefix: '/api' });
 
   // In production-style runs, serve the built React app from the same port.
   if (config.webDistDir) {

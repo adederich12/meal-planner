@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  RecipeImportDraftSchema,
   RecipeSchema,
   RecipeSummarySchema,
   TagListSchema,
@@ -22,6 +23,9 @@ export function createRecipeService(client: ApiClient = apiClient) {
       client.post(RecipeSchema, `/api/recipes/${id}/${archived ? 'archive' : 'restore'}`),
     remove: (id: string) => client.del(z.undefined(), `/api/recipes/${id}`),
     listTags: () => client.get(TagListSchema, '/api/tags'),
+    /** Reads a recipe page into a draft. Saves nothing. */
+    importFromUrl: (url: string) =>
+      client.post(RecipeImportDraftSchema, '/api/recipes/import', { url }),
   };
 }
 

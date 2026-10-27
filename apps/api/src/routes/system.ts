@@ -4,7 +4,7 @@ import { HealthResponseSchema } from '@meal-planner/shared';
 import type { AppDeps } from '../app.js';
 import pkg from '../../package.json' with { type: 'json' };
 
-export function systemRoutes({ db }: AppDeps): FastifyPluginAsyncZod {
+export function systemRoutes({ db, recipeAi }: AppDeps): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(
       '/health',
@@ -22,6 +22,7 @@ export function systemRoutes({ db }: AppDeps): FastifyPluginAsyncZod {
           status: 'ok' as const,
           version: pkg.version,
           uptimeSeconds: Math.round(process.uptime()),
+          features: { recipeImport: Boolean(recipeAi) },
         };
       },
     );

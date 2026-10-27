@@ -1,15 +1,21 @@
 import { networkInterfaces } from 'node:os';
+import Anthropic from '@anthropic-ai/sdk';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { dbFilePath, openDb, runMigrations } from './db/client.js';
 import { isPrivateAddress } from './lan-guard.js';
+import { createClaudeRecipeAi } from './services/recipe-import/recipe-ai.js';
 
 const config = loadConfig();
 
 const db = openDb(dbFilePath(config.dataDir));
 runMigrations(db);
 
-const app = await buildApp(config, { db });
+const recipeAi = config.anthropicApiKey
+  ? createClaudeRecipeAi(new Anthropic({ apiKey: config.anthropicApiKey }))
+  : null;
+
+const app = await buildApp(config, { db, recipeAi });
 
 const shutdown = async (signal: string) => {
   app.log.info(`${signal} received, shutting down`);

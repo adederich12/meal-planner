@@ -68,3 +68,8 @@ export function useDeleteRecipe() {
     },
   });
 }
+
+/** Reads a recipe page into a form draft. Saves nothing, so there's nothing to invalidate. */
+export function useImportRecipe() {
+  return useMutation({ mutationFn: (url: string) => recipeService.importFromUrl(url) });
+}

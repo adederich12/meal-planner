@@ -2,9 +2,11 @@ import { z } from 'zod';
 import {
   parseQuantity,
   quantityToInput,
+  IngredientCategorySchema,
   RecipeInputSchema,
   UnitSchema,
   type Recipe,
+  type RecipeImportDraft,
 } from '@meal-planner/shared';
 import { validateWith, wholeNumberText } from './fields';
 
@@ -19,8 +21,16 @@ const LineFormSchema = z
     unit: UnitSchema.or(z.literal('')),
     preparation: z.string(),
     isOptional: z.boolean(),
+    /** Set on imported lines, to help review them. Not sent to the API. */
+    hint: z
+      .object({
+        original: z.string(),
+        suggestedName: z.string(),
+        suggestedCategory: IngredientCategorySchema,
+      })
+      .optional(),
   })
-  .transform(({ quantity: text, unit, ...rest }, ctx) => {
+  .transform(({ quantity: text, unit, hint: _hint, ...rest }, ctx) => {
     let quantity: number | null = null;
     if (text.trim()) {
       quantity = parseQuantity(text);
@@ -111,6 +121,36 @@ export function toRecipeFormValues(recipe?: Recipe, defaultServings = 4): Recipe
       unit: line.unit ?? '',
       preparation: line.preparation ?? '',
       isOptional: line.isOptional,
+    })),
+  };
+}
+
+/** An imported draft (not yet saved) as form values. Unmatched lines have no ingredient yet. */
+export function toRecipeFormValuesFromDraft(
+  draft: RecipeImportDraft,
+  defaultServings = 4,
+): RecipeFormValues {
+  return {
+    name: draft.name,
+    servings: String(draft.servings ?? defaultServings),
+    prepMinutes: draft.prepMinutes === null ? '' : String(draft.prepMinutes),
+    cookMinutes: draft.cookMinutes === null ? '' : String(draft.cookMinutes),
+    instructions: draft.instructions,
+    sourceUrl: draft.sourceUrl,
+    notes: '',
+    rating: '',
+    tags: draft.tags.join(', '),
+    ingredients: draft.ingredients.map((line) => ({
+      ingredientId: line.ingredientId ?? '',
+      quantity: line.quantity === null ? '' : quantityToInput(line.quantity),
+      unit: line.unit ?? '',
+      preparation: line.preparation ?? '',
+      isOptional: line.isOptional,
+      hint: {
+        original: line.original,
+        suggestedName: line.suggestedName,
+        suggestedCategory: line.suggestedCategory,
+      },
     })),
   };
 }

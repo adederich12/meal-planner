@@ -4,7 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { INGREDIENT_CATEGORIES, type Ingredient } from '@meal-planner/shared';
+import {
+  INGREDIENT_CATEGORIES,
+  type Ingredient,
+  type IngredientCategory,
+} from '@meal-planner/shared';
 import { FormField } from '@/components/FormField';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { Button } from '@/components/ui/button';
@@ -50,6 +54,7 @@ export function IngredientDialog({
   onOpenChange,
   ingredient,
   defaultName,
+  defaultCategory,
   onSaved,
 }: {
   open: boolean;
@@ -57,19 +62,25 @@ export function IngredientDialog({
   /** Edit this one; omit to add a new ingredient. */
   ingredient?: Ingredient | undefined;
   defaultName?: string;
+  defaultCategory?: IngredientCategory;
   onSaved?: (ingredient: Ingredient) => void;
 }) {
   const isEdit = Boolean(ingredient);
   const form = useForm<IngredientFormValues, unknown, IngredientFormOutput>({
     resolver: zodResolver(IngredientFormSchema),
-    defaultValues: toIngredientFormValues(ingredient, { name: defaultName }),
+    defaultValues: toIngredientFormValues(ingredient, {
+      name: defaultName,
+      category: defaultCategory,
+    }),
   });
   const { register, handleSubmit, control, reset, setError, formState } = form;
 
   // Fresh values each time it opens (the dialog stays mounted between uses).
   useEffect(() => {
-    if (open) reset(toIngredientFormValues(ingredient, { name: defaultName }));
-  }, [open, ingredient, defaultName, reset]);
+    if (open) {
+      reset(toIngredientFormValues(ingredient, { name: defaultName, category: defaultCategory }));
+    }
+  }, [open, ingredient, defaultName, defaultCategory, reset]);
 
   const create = useCreateIngredient();
   const replace = useReplaceIngredient();

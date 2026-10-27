@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from 'cn';
-import type { Ingredient, IngredientListItem } from '@meal-planner/shared';
+import type { Ingredient, IngredientCategory, IngredientListItem } from '@meal-planner/shared';
 import { IngredientDialog } from '@/components/ingredients/IngredientDialog';
 import { CATEGORY_LABELS } from '@/components/ingredients/format';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ export function IngredientPicker({
   onChange,
   catalog,
   invalid,
+  suggestion,
 }: {
   id?: string;
   value: string;
@@ -32,6 +33,8 @@ export function IngredientPicker({
   /** The full catalog, archived included (so existing lines can show their name). */
   catalog: IngredientListItem[];
   invalid?: boolean;
+  /** From an import: what to add to the catalog when nothing matched. */
+  suggestion?: { name: string; category: IngredientCategory } | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -44,6 +47,11 @@ export function IngredientPicker({
   const pickable = catalog.filter((i) => !i.archivedAt);
   const typed = search.trim();
   const exactMatch = pickable.some((i) => i.name.toLowerCase() === typed.toLowerCase());
+
+  // The suggested name may already be in the catalog (added for another line).
+  const suggestedMatch =
+    suggestion && pickable.find((i) => i.name.toLowerCase() === suggestion.name.toLowerCase());
+  const [creatingCategory, setCreatingCategory] = useState<IngredientCategory | undefined>();
 
   const choose = (ingredientId: string) => {
     onChange(ingredientId);
@@ -112,10 +120,34 @@ export function IngredientPicker({
         </PopoverContent>
       </Popover>
 
+      {!selected && suggestion && (
+        <Button
+          type="button"
+          variant="link"
+          size="xs"
+          className="h-auto justify-self-start px-0"
+          onClick={() => {
+            if (suggestedMatch) return choose(suggestedMatch.id);
+            setCreatingCategory(suggestion.category);
+            setCreating(suggestion.name);
+          }}
+        >
+          {suggestedMatch
+            ? `Use “${suggestedMatch.name}”`
+            : `+ Add “${suggestion.name}” to the catalog`}
+        </Button>
+      )}
+
       <IngredientDialog
         open={creating !== null}
-        onOpenChange={(o) => !o && setCreating(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCreating(null);
+            setCreatingCategory(undefined);
+          }
+        }}
         defaultName={creating ?? ''}
+        defaultCategory={creatingCategory}
         onSaved={(ingredient) => {
           setJustCreated(ingredient);
           choose(ingredient.id);

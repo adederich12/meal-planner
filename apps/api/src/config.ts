@@ -13,6 +13,8 @@ const EnvSchema = z.object({
   ALLOWED_HOSTS: z.string().default(''),
   DATA_DIR: z.string().default('./data'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  // Enables recipe import (DESIGN §6). Never sent to the browser.
+  ANTHROPIC_API_KEY: z.string().trim().optional(),
 });
 
 export interface AppConfig {
@@ -22,6 +24,8 @@ export interface AppConfig {
   allowedHosts: string[];
   dataDir: string;
   env: 'development' | 'production' | 'test';
+  /** Claude API key for recipe import; undefined disables the feature. */
+  anthropicApiKey: string | undefined;
   /** Built web app to serve as static files, if it exists. */
   webDistDir: string | undefined;
 }
@@ -45,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       .filter(Boolean),
     dataDir: resolve(REPO_ROOT, parsed.DATA_DIR),
     env: parsed.NODE_ENV,
+    anthropicApiKey: parsed.ANTHROPIC_API_KEY || undefined,
     webDistDir: existsSync(resolve(webDistDir, 'index.html')) ? webDistDir : undefined,
   };
 }
