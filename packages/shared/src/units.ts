@@ -291,3 +291,59 @@ export function formatAmount({ quantity, unit }: Amount, countNoun?: string | nu
   const def = UNITS[unit];
   return `${qty} ${isOne ? def.singular : def.plural}`;
 }
+
+/**
+ * Text for an edit field: exact, so saving the form again never changes the
+ * stored value. Common fractions show as fractions ("1 1/2"); anything else as
+ * a decimal. Compare formatQuantity, which rounds for reading.
+ */
+export function quantityToInput(value: number): string {
+  const whole = Math.floor(value);
+  const frac = value - whole;
+  for (const [fracValue, text] of NICE_FRACTIONS) {
+    if (text && Math.abs(fracValue - frac) < 1e-9) return whole ? `${whole} ${text}` : text;
+  }
+  return String(Number(value.toFixed(6)));
+}
+
+/** US spoon and cup units: when scaling, these can switch among themselves (3 tsp → 1 tbsp). */
+const SPOON_AND_CUP: readonly Unit[] = ['tsp', 'tbsp', 'cup'];
+
+/**
+ * Scales a recipe amount (servings change). Spoon and cup amounts re-pick the
+ * readable unit, so 1 tbsp × 1/4 reads "3/4 tsp" rather than "1/4 tbsp". Other
+ * units keep the unit the recipe was written in.
+ */
+export function scaleAmount({ quantity, unit }: Amount, factor: number): Amount {
+  const scaled = { quantity: quantity * factor, unit };
+  if (factor === 1 || !SPOON_AND_CUP.includes(unit)) return scaled;
+  const shown = toDisplayAmount(toBase(scaled));
+  return SPOON_AND_CUP.includes(shown.unit) ? shown : scaled;
+}
+
+/**
+ * A recipe line's amount with the ingredient: "1 1/2 cups all-purpose flour",
+ * "2 cloves garlic", "3 yellow onions", "2 eggs".
+ * For `each`, the count noun replaces the name when they're the same word.
+ */
+export function formatIngredientAmount(
+  amount: Amount,
+  ingredient: { name: string; countNoun?: string | null },
+): string {
+  const { name, countNoun } = ingredient;
+  if (amount.unit !== 'each') return `${formatAmount(amount)} ${name}`;
+  if (!countNoun) return formatAmount(amount, name);
+  const sameWord = [countNoun, pluralize(countNoun)].some(
+    (w) => w.toLowerCase() === name.toLowerCase(),
+  );
+  return sameWord ? formatAmount(amount, countNoun) : `${formatAmount(amount, countNoun)} ${name}`;
+}
+
+/** Density from "1 cup weighs N grams", the way USDA and package labels list it. */
+export function gramsPerCupToDensity(gramsPerCup: number): number {
+  return gramsPerCup / UNITS.cup.toBase;
+}
+
+export function densityToGramsPerCup(gramsPerMl: number): number {
+  return gramsPerMl * UNITS.cup.toBase;
+}

@@ -22,6 +22,8 @@ const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: 'intent',
+  // New pages open at the top; Back returns to where you were.
+  scrollRestoration: true,
 });
 
 // Registers the router's types globally, so <Link to="..."> and params are type-checked.

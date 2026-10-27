@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
-const API_URL = 'http://localhost:3002';
+// Override to point a second dev server at an API on another port.
+const API_URL = process.env.API_URL ?? 'http://localhost:3002';
 
 export default defineConfig({
   plugins: [

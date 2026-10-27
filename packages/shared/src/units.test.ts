@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   combineAmounts,
   convertUnit,
+  densityToGramsPerCup,
+  formatIngredientAmount,
+  gramsPerCupToDensity,
+  quantityToInput,
+  scaleAmount,
   formatAmount,
   formatQuantity,
   parseQuantity,
@@ -201,5 +206,75 @@ describe('formatAmount and pluralize', () => {
     ['day', 'days'],
   ])('%s → %s', (noun, plural) => {
     expect(pluralize(noun)).toBe(plural);
+  });
+});
+
+describe('quantityToInput', () => {
+  it.each<[number, string]>([
+    [2, '2'],
+    [0.5, '1/2'],
+    [1.5, '1 1/2'],
+    [1 / 3, '1/3'],
+    [2 + 2 / 3, '2 2/3'],
+    // Not a common fraction: stays exact instead of rounding to 1/3.
+    [0.3, '0.3'],
+    [12.4, '12.4'],
+    [0.01, '0.01'],
+  ])('%d → %j', (value, expected) => {
+    expect(quantityToInput(value)).toBe(expected);
+  });
+
+  it('round-trips through parseQuantity', () => {
+    for (const v of [0.25, 1 / 3, 1.75, 0.3, 2.125, 7]) {
+      expect(parseQuantity(quantityToInput(v))).toBeCloseTo(v, 6);
+    }
+  });
+});
+
+describe('scaleAmount', () => {
+  const scaled = (a: Amount, f: number) => {
+    const r = scaleAmount(a, f);
+    return [Number(r.quantity.toFixed(3)), r.unit];
+  };
+
+  it.each<[Amount, number, number, Unit]>([
+    [{ quantity: 1, unit: 'cup' }, 1, 1, 'cup'],
+    [{ quantity: 0.5, unit: 'cup' }, 3, 1.5, 'cup'],
+    [{ quantity: 1, unit: 'tsp' }, 3, 1, 'tbsp'],
+    [{ quantity: 1, unit: 'tbsp' }, 0.25, 0.75, 'tsp'],
+    [{ quantity: 2, unit: 'tbsp' }, 4, 0.5, 'cup'],
+    // Huge batches stay in cups rather than jumping to gallons.
+    [{ quantity: 4, unit: 'cup' }, 4, 16, 'cup'],
+    // Other units keep the unit the recipe used.
+    [{ quantity: 200, unit: 'g' }, 2, 400, 'g'],
+    [{ quantity: 1, unit: 'lb' }, 0.5, 0.5, 'lb'],
+    [{ quantity: 2, unit: 'each' }, 1.5, 3, 'each'],
+  ])('%o × %d → %d %s', (amount, factor, qty, unit) => {
+    expect(scaled(amount, factor)).toEqual([qty, unit]);
+  });
+});
+
+describe('formatIngredientAmount', () => {
+  it.each<[Amount, { name: string; countNoun?: string | null }, string]>([
+    [{ quantity: 1.5, unit: 'cup' }, { name: 'all-purpose flour' }, '1 1/2 cups all-purpose flour'],
+    [{ quantity: 2, unit: 'each' }, { name: 'garlic', countNoun: 'clove' }, '2 cloves garlic'],
+    [{ quantity: 3, unit: 'each' }, { name: 'yellow onion' }, '3 yellow onions'],
+    [{ quantity: 1, unit: 'each' }, { name: 'yellow onion', countNoun: null }, '1 yellow onion'],
+    [{ quantity: 2, unit: 'each' }, { name: 'eggs', countNoun: 'egg' }, '2 eggs'],
+    [{ quantity: 1, unit: 'each' }, { name: 'eggs', countNoun: 'egg' }, '1 egg'],
+    [
+      { quantity: 1, unit: 'each' },
+      { name: 'diced tomatoes', countNoun: 'can' },
+      '1 can diced tomatoes',
+    ],
+  ])('%o %o → %j', (amount, ingredient, expected) => {
+    expect(formatIngredientAmount(amount, ingredient)).toBe(expected);
+  });
+});
+
+describe('density from grams per cup', () => {
+  it('round-trips', () => {
+    expect(gramsPerCupToDensity(236.5882365)).toBeCloseTo(1, 9);
+    expect(densityToGramsPerCup(gramsPerCupToDensity(125))).toBeCloseTo(125, 9);
   });
 });

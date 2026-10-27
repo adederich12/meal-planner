@@ -57,6 +57,8 @@ export function createApiClient({ baseUrl = '' }: ApiClientOptions = {}) {
     get: <T extends z.ZodType>(schema: T, path: string) => request(schema, path),
     post: <T extends z.ZodType>(schema: T, path: string, json?: unknown) =>
       request(schema, path, withJson('POST', json)),
+    put: <T extends z.ZodType>(schema: T, path: string, json: unknown) =>
+      request(schema, path, withJson('PUT', json)),
     patch: <T extends z.ZodType>(schema: T, path: string, json: unknown) =>
       request(schema, path, withJson('PATCH', json)),
     del: <T extends z.ZodType>(schema: T, path: string) =>

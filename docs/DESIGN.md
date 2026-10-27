@@ -2,7 +2,7 @@
 
 A locally hosted app for keeping recipes, planning a week of meals, and turning that plan into a single, combined grocery list, with the aim of lowering household food costs.
 
-- **Status:** Draft, pre-implementation
+- **Status:** Phase 1 (ingredients + recipes) implemented
 - **Last updated:** 2026-10-27
 
 ---
@@ -197,6 +197,16 @@ Keys use `ingredientId`, not a line ID, because lines are recomputed whenever th
 
 A single-row `settings` table: `householdSize` (default servings), `weekStartsOn` (0–6).
 
+### 4.8 Writes, archiving, and deletes
+
+- **Full replace (`PUT`), not `PATCH`,** for ingredients and recipes. The forms always send the whole record, and a Zod `.partial()` over fields with defaults (`isStaple`) or null-transforms is easy to get wrong: a missing field can quietly become its default.
+- **Recipe lines are replaced on every save**, so line IDs aren't stable. Nothing may reference a line ID (shopping list state keys on `ingredientId`, §4.6).
+- **Ingredients:** `DELETE` works only when no recipe uses the ingredient (409 `INGREDIENT_IN_USE`); otherwise archive it (`POST /:id/archive`, `/:id/restore`). Archived ingredients leave the catalog list and the recipe picker but still show on recipes that use them. Recipes may keep referencing archived ingredients.
+- **Recipes:** archive/restore the same way. `DELETE` removes the recipe and its lines. **Phase 2 must revisit this**: a recipe used by meal plan entries should be archived, not deleted.
+- **Tags** exist only while a recipe uses them; unused tags are removed on save and delete. They're de-duplicated case-insensitively, first spelling kept.
+- **Conversion data in the UI:** density is entered as "1 cup weighs N g" (how USDA and package labels list it) and stored as `gramsPerMl`.
+- **Form text vs API input:** web form schemas (`apps/web/src/forms/`) parse what people type ("1 1/2", "") and then validate with the shared API schema, so both sides enforce the same rules. Edit fields show stored quantities exactly (`quantityToInput`), never rounded, so re-saving doesn't change data.
+
 ---
 
 ## 5. Ingredient overlap
@@ -230,7 +240,7 @@ The same query, run for a single recipe, gives "recipes similar to this one" on 
 ## 7. Frontend pages
 
 - **Planner** (home): week grid, prev/next week, drag a recipe into a slot, overlap suggestions panel.
-- **Recipes**: search and filter by tag/ingredient; detail page with scaling by servings; edit form with an ingredient-line editor (type-ahead on the catalog, create an ingredient inline).
+- **Recipes**: search and filter by tag/ingredient; detail page with scaling by servings; edit form with an ingredient-line editor (type-ahead on the catalog, create an ingredient inline). Filters and the scaled serving count live in URL search params (`?q=&tag=`, `?servings=6`), so Back and shared links keep them.
 - **Ingredients**: catalog table; edit category, staple flag, and conversion data; shows the recipes that use each one.
 - **Shopping list**: grouped by store section, checkboxes, "already have", extras, print-friendly layout.
 - **Settings**: household size, week start.
