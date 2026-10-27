@@ -35,10 +35,35 @@ export const RecipeImportDraftSchema = z.object({
   cookMinutes: z.number().int().nonnegative().nullable(),
   /** Markdown. */
   instructions: z.string(),
-  sourceUrl: z.string(),
+  /** Null for scans. */
+  sourceUrl: z.string().nullable(),
   tags: z.array(z.string()),
   ingredients: z.array(ImportedLineSchema),
-  /** Where the data came from: the page's schema.org Recipe data, or its visible text. */
-  source: z.enum(['structured-data', 'page-text']),
+  /**
+   * Where the data came from: the page's schema.org Recipe data, its visible
+   * text, or a scan/photo of a paper recipe card.
+   */
+  source: z.enum(['structured-data', 'page-text', 'scan']),
+  /** Anything the reader wants the reviewer to know ("two serving columns; used 4"). */
+  notes: z.string().nullable(),
 });
 export type RecipeImportDraft = z.infer<typeof RecipeImportDraftSchema>;
+
+/** File types a scanned or photographed recipe can be uploaded as. */
+export const SCAN_MEDIA_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export type ScanMediaType = (typeof SCAN_MEDIA_TYPES)[number];
+/** One recipe: front and back of a card, or a few photos. */
+export const MAX_SCAN_FILES = 4;
+/**
+ * Claude's limits: about 32 MB per request (files are sent base64-encoded, a
+ * third larger) and about 5 MB per image. The web app shrinks photos before
+ * uploading, so these mostly matter for large PDFs.
+ */
+export const MAX_SCAN_FILE_BYTES = 20 * 1024 * 1024;
+export const MAX_SCAN_TOTAL_BYTES = 20 * 1024 * 1024;
+export const MAX_SCAN_IMAGE_BYTES = 5 * 1024 * 1024;

@@ -26,6 +26,12 @@ export function createRecipeService(client: ApiClient = apiClient) {
     /** Reads a recipe page into a draft. Saves nothing. */
     importFromUrl: (url: string) =>
       client.post(RecipeImportDraftSchema, '/api/recipes/import', { url }),
+    /** Reads scans or photos of one paper recipe into a draft. Saves nothing. */
+    importFromScan: (files: File[]) => {
+      const form = new FormData();
+      for (const file of files) form.append('files', file);
+      return client.postForm(RecipeImportDraftSchema, '/api/recipes/import/scan', form);
+    },
   };
 }
 

@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Sparkles } from 'lucide-react';
 import type { RecipeImportDraft } from '@meal-planner/shared';
 import { PageHeader } from '@/components/PageHeader';
-import { ImportFromUrl } from '@/components/recipes/ImportFromUrl';
+import { RecipeImportCard } from '@/components/recipes/RecipeImportCard';
 import { RecipeForm } from '@/components/recipes/RecipeForm';
 import { toRecipeFormValuesFromDraft } from '@/forms/recipe-form';
 import { useCreateRecipe } from '@/queries/recipes.queries';
@@ -22,7 +22,7 @@ function NewRecipePage() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="New recipe" />
-      <ImportFromUrl
+      <RecipeImportCard
         onImported={(draft) => setImported((prev) => ({ draft, key: (prev?.key ?? 0) + 1 }))}
       />
 
@@ -31,7 +31,10 @@ function NewRecipePage() {
           <Sparkles className="text-muted-foreground mt-0.5 size-4 shrink-0" />
           <div>
             <p className="font-medium">
-              Imported from {new URL(imported.draft.sourceUrl).hostname}. Check it before saving.
+              {imported.draft.sourceUrl
+                ? `Imported from ${new URL(imported.draft.sourceUrl).hostname}.`
+                : 'Read from your scan.'}{' '}
+              Check it before saving.
             </p>
             <p className="text-muted-foreground mt-1">
               {imported.draft.ingredients.length} ingredient
@@ -41,7 +44,14 @@ function NewRecipePage() {
                 : ', all matched to your catalog.'}
               {imported.draft.source === 'page-text' &&
                 ' The page had no recipe data, so Claude read its text; check the steps too.'}
+              {imported.draft.source === 'scan' &&
+                ' Compare amounts with the card; printed fractions are easy to misread.'}
             </p>
+            {imported.draft.notes && (
+              <p className="mt-2">
+                <span className="font-medium">Note from Claude:</span> {imported.draft.notes}
+              </p>
+            )}
           </div>
         </div>
       )}

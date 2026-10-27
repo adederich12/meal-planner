@@ -246,6 +246,21 @@ The same query, run for a single recipe, gives "recipes similar to this one" on 
 
 The feature is on only when `ANTHROPIC_API_KEY` is set (`/api/health` reports `features.recipeImport`). The key stays server-side. `RecipeAi` and `fetchPage` are injected through `AppDeps`, so tests use a fake model and saved HTML and never call the network or the API.
 
+### 6.2 Recipe import from scans and photos
+
+`POST /api/recipes/import/scan` (multipart, 1–4 files for **one** recipe, e.g. both sides of a meal-kit card) returns the same draft with `source: "scan"`, `sourceUrl: null`, and an optional `notes` from Claude for the reviewer.
+
+- **Input.** PDF, JPEG, PNG, or WebP. The type is decided from the file's first bytes ("magic numbers"), never from the client's filename or Content-Type. HEIC is rejected with a hint. Limits follow Claude's: 20 MB per request in total (base64 adds a third, against a ~32 MB API cap) and 5 MB per image. The web app shrinks photos to 2000 px JPEGs in the browser before upload (`lib/shrink-image.ts`), applying EXIF rotation. Multipart is registered only on the import routes.
+- **Reading.** Claude reads PDFs (scanned or not) and images natively, so there's no separate OCR step. Files go in as `document` / `image` blocks. The card instructions cover meal-kit layouts:
+  - pick the serving column closest to the household size (from `settings`, default 2), and report which one in `notes`;
+  - include separately listed pantry items;
+  - keep kit-only blends and packets as new ingredients, with their contents noted;
+  - take ingredients and prep only from the printed ingredient list, never from the steps;
+  - copy steps faithfully;
+  - ignore photos, nutrition, and marketing.
+- **Cost and speed.** One card is about 5–10 cents and 10–20 seconds.
+- **Not built yet.** Batch import (a stack of cards reviewed one after another) would need stored drafts. Keeping the original scan with the recipe would need file storage under `data/`. Both wait until the one-at-a-time flow has been used on real cards.
+
 ---
 
 ## 7. Frontend pages

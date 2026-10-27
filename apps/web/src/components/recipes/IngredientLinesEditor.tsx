@@ -42,7 +42,7 @@ export function IngredientLinesEditor() {
             <li key={field.id} className="bg-background grid gap-2 rounded-lg border p-3">
               {hint && (
                 <p className="text-muted-foreground text-xs">
-                  From the page: <q className="text-foreground">{hint.original}</q>
+                  From the {hint.from}: <q className="text-foreground">{hint.original}</q>
                 </p>
               )}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-[5rem_8rem_minmax(0,1fr)_minmax(0,1fr)]">

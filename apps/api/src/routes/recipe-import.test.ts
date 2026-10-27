@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { MAX_SCAN_FILES } from '@meal-planner/shared';
 import { buildApp, type App } from '../app.js';
+import { settings } from '../db/schema.js';
+import { sniffScanType } from '../services/recipe-import/recipe-import.service.js';
 import type { PageFetcher } from '../services/recipe-import/fetch-page.js';
 import type { ParsedLine, RecipeAi } from '../services/recipe-import/recipe-ai.js';
 import { createTestDeps, testConfig } from '../test/helpers.js';
@@ -28,9 +31,38 @@ const line = (over: Partial<ParsedLine>): ParsedLine => ({
 });
 
 /** Records what it was asked and answers like Claude would. */
-function fakeAi(): RecipeAi & { seen: { lines?: string[]; catalog?: string[] } } {
-  const seen: { lines?: string[]; catalog?: string[] } = {};
+interface Seen {
+  lines?: string[];
+  catalog?: string[];
+  scan?: { mediaTypes: string[]; householdSize: number };
+}
+
+function fakeAi(): RecipeAi & { seen: Seen } {
+  const seen: Seen = {};
   return {
+    async readScan({ files, householdSize }) {
+      seen.scan = { mediaTypes: files.map((f) => f.mediaType), householdSize };
+      if (files[0]!.data.includes('BLANK')) return null;
+      return {
+        name: 'Isthmus chili',
+        servings: 4,
+        prepMinutes: 10,
+        cookMinutes: 30,
+        instructions: '1. Brown the beef.\n2. Simmer.',
+        tags: ['dinner'],
+        reviewNote: ' Used the 4-serving column. ',
+        lines: [
+          line({ original: '2 cloves garlic', catalogName: 'garlic', quantity: 2, unit: 'each' }),
+          line({
+            original: '1 packet Isthmus Chili Blend',
+            newIngredientName: 'isthmus chili blend',
+            category: 'spices',
+            quantity: 1,
+            unit: 'each',
+          }),
+        ],
+      };
+    },
     seen,
     async parseLines({ lines, catalog }) {
       seen.lines = lines;
@@ -186,5 +218,174 @@ describe('POST /api/recipes/import', () => {
       payload: { url: 'ftp://example.com/x' },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scans and photos
+// ---------------------------------------------------------------------------
+
+const PDF = Buffer.from('%PDF-1.4\n% fake card\n');
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('fake jpeg')]);
+const HEIC = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic')]);
+
+/** A multipart/form-data body, built by hand so tests need no form library. */
+function multipart(files: { name: string; data: Buffer }[]) {
+  const boundary = '----meal-planner-test';
+  const parts = files.map((f) =>
+    Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${f.name}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+      ),
+      f.data,
+      Buffer.from('\r\n'),
+    ]),
+  );
+  return {
+    payload: Buffer.concat([...parts, Buffer.from(`--${boundary}--\r\n`)]),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
+}
+
+describe('POST /api/recipes/import/scan', () => {
+  let app: App;
+  let cleanup = () => {};
+  let deps: ReturnType<typeof createTestDeps>;
+
+  afterEach(async () => {
+    await app.close();
+    cleanup();
+  });
+
+  async function setup(recipeAi: RecipeAi | null = fakeAi()) {
+    deps = createTestDeps();
+    cleanup = deps.cleanup;
+    app = await buildApp(testConfig, { ...deps, recipeAi });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ingredients',
+      payload: { name: 'garlic', category: 'produce' },
+    });
+    return res.json().id as string;
+  }
+
+  const upload = (files: { name: string; data: Buffer }[]) =>
+    app.inject({ method: 'POST', url: '/api/recipes/import/scan', ...multipart(files) });
+
+  it('reads the front and back of a card into a draft', async () => {
+    const ai = fakeAi();
+    const garlicId = await setup(ai);
+    const res = await upload([
+      { name: 'front.pdf', data: PDF },
+      { name: 'back.jpg', data: JPEG },
+    ]);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      name: 'Isthmus chili',
+      servings: 4,
+      source: 'scan',
+      sourceUrl: null,
+      notes: 'Used the 4-serving column.',
+      ingredients: [
+        { ingredientId: garlicId, quantity: 2, unit: 'each' },
+        { ingredientId: null, suggestedName: 'isthmus chili blend', suggestedCategory: 'spices' },
+      ],
+    });
+    // Types come from the file bytes, not the names or headers.
+    expect(ai.seen.scan).toEqual({
+      mediaTypes: ['application/pdf', 'image/jpeg'],
+      householdSize: 2,
+    });
+  });
+
+  it('passes the household size from settings', async () => {
+    const ai = fakeAi();
+    await setup(ai);
+    deps.db.insert(settings).values({ householdSize: 5 }).run();
+    await upload([{ name: 'card.pdf', data: PDF }]);
+    expect(ai.seen.scan?.householdSize).toBe(5);
+  });
+
+  it('rejects files that are not PDFs or common images', async () => {
+    await setup();
+    const res = await upload([{ name: 'IMG_0001.HEIC', data: HEIC }]);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('UNSUPPORTED_FILE');
+  });
+
+  it('limits one import to a few files', async () => {
+    await setup();
+    const res = await upload(
+      Array.from({ length: MAX_SCAN_FILES + 1 }, (_, i) => ({ name: `${i}.pdf`, data: PDF })),
+    );
+    expect(res.statusCode).toBe(413);
+  });
+
+  it('requires at least one file', async () => {
+    await setup();
+    expect((await upload([])).json().error.code).toBe('FILE_REQUIRED');
+    const json = await app.inject({
+      method: 'POST',
+      url: '/api/recipes/import/scan',
+      payload: { url: 'https://example.com' },
+    });
+    expect(json.json().error.code).toBe('EXPECTED_MULTIPART');
+  });
+
+  it('422s when the scan has no recipe', async () => {
+    await setup();
+    const res = await upload([{ name: 'blank.pdf', data: Buffer.from('%PDF-1.4 BLANK') }]);
+    expect(res.statusCode).toBe(422);
+  });
+
+  it('503s when no API key is configured', async () => {
+    await setup(null);
+    expect((await upload([{ name: 'card.pdf', data: PDF }])).statusCode).toBe(503);
+  });
+});
+
+describe('sniffScanType', () => {
+  it.each([
+    [PDF, 'application/pdf'],
+    [JPEG, 'image/jpeg'],
+    [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]), 'image/png'],
+    [Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]), 'image/webp'],
+    [HEIC, null],
+    [Buffer.from('<html>'), null],
+    [Buffer.alloc(0), null],
+  ])('%#', (data, expected) => {
+    expect(sniffScanType(data)).toBe(expected);
+  });
+});
+
+describe('scan size limits', () => {
+  it('rejects an image over 5 MB and uploads over 20 MB in total', async () => {
+    const deps = createTestDeps();
+    const app = await buildApp(testConfig, { ...deps, recipeAi: fakeAi() });
+    try {
+      const bigJpeg = Buffer.concat([JPEG, Buffer.alloc(5 * 1024 * 1024)]);
+      const big = await app.inject({
+        method: 'POST',
+        url: '/api/recipes/import/scan',
+        ...multipart([{ name: 'big.jpg', data: bigJpeg }]),
+      });
+      expect(big.statusCode).toBe(413);
+
+      const pdf = Buffer.concat([PDF, Buffer.alloc(11 * 1024 * 1024)]);
+      const total = await app.inject({
+        method: 'POST',
+        url: '/api/recipes/import/scan',
+        ...multipart([
+          { name: 'a.pdf', data: pdf },
+          { name: 'b.pdf', data: pdf },
+        ]),
+      });
+      expect(total.statusCode).toBe(413);
+      expect(total.json().error.code).toBe('FILE_TOO_LARGE');
+    } finally {
+      await app.close();
+      deps.cleanup();
+    }
   });
 });

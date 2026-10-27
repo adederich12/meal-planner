@@ -25,6 +25,8 @@ const LineFormSchema = z
     hint: z
       .object({
         original: z.string(),
+        /** Where the original text came from, for the label. */
+        from: z.enum(['page', 'card']),
         suggestedName: z.string(),
         suggestedCategory: IngredientCategorySchema,
       })
@@ -136,7 +138,7 @@ export function toRecipeFormValuesFromDraft(
     prepMinutes: draft.prepMinutes === null ? '' : String(draft.prepMinutes),
     cookMinutes: draft.cookMinutes === null ? '' : String(draft.cookMinutes),
     instructions: draft.instructions,
-    sourceUrl: draft.sourceUrl,
+    sourceUrl: draft.sourceUrl ?? '',
     notes: '',
     rating: '',
     tags: draft.tags.join(', '),
@@ -148,6 +150,7 @@ export function toRecipeFormValuesFromDraft(
       isOptional: line.isOptional,
       hint: {
         original: line.original,
+        from: draft.source === 'scan' ? 'card' : 'page',
         suggestedName: line.suggestedName,
         suggestedCategory: line.suggestedCategory,
       },

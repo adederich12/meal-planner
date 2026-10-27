@@ -73,3 +73,8 @@ export function useDeleteRecipe() {
 export function useImportRecipe() {
   return useMutation({ mutationFn: (url: string) => recipeService.importFromUrl(url) });
 }
+
+/** Reads scans or photos of a paper recipe into a form draft. Saves nothing. */
+export function useImportScan() {
+  return useMutation({ mutationFn: (files: File[]) => recipeService.importFromScan(files) });
+}
